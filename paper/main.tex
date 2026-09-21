@@ -114,7 +114,7 @@ stability selection from a \emph{single} fit.
 selection procedure with \emph{empirically verified} FDR control:
 shadow-feature augmentation plus a knockoff\textsuperscript{+}-style threshold on
 one forest's importances. It is an $O(1)$-refit drop-in for stability selection
-and handles overlapping groups. We are explicit that the theoretical knockoff
+and also supports group-level selection. We are explicit that the theoretical knockoff
 guarantee is \emph{not} established for permutation shadows.
 \item \textbf{The between-tree dispersion law (Sec.~\ref{sec:validity}).} A
 forest's between-tree dispersion $s_j$ tracks the true cross-resample standard
@@ -138,7 +138,7 @@ $\mathrm{FDR}=\mathbb{E}[\,|\hat{\mathcal{S}}\cap\mathcal{N}^\star|/
 \max(1,|\hat{\mathcal{S}}|)\,]\le q$ at high power
 $\mathbb{E}[|\hat{\mathcal{S}}\cap\mathcal{R}^\star|/|\mathcal{R}^\star|]$ and
 high \emph{selection stability} (large Jaccard overlap of the sets chosen on
-independent draws from $P$). Groups (possibly overlapping) are an optional
+independent draws from $P$). Groups are an optional
 generalization.
 
 \section{Background}\label{sec:bg}
@@ -228,7 +228,8 @@ as an alternative; Sec.~\ref{sec:exp} shows it \emph{hurts}, so \textsc{SF-Selec
 selects on $\phi_j$ and reserves $s_j$ for annotation.)
 \emph{Null calibration.} We augment the design with $p$ \emph{shadow}
 features, each a random permutation of a randomly chosen real column; shadows are
-guaranteed null and provide an empirical null without label-permutation refits.
+marginally null by construction and provide an empirical null without
+label-permutation refits.
 We fit the forest \emph{once} on the augmented design and compute $\phi_j$ for
 real and shadow features. \emph{FDR control.} Following the
 knockoff\textsuperscript{+} rule~\cite{barber2015}, for threshold $t$ let
@@ -251,7 +252,7 @@ reported with its between-tree dispersion $s_j$ (Sec.~\ref{sec:validity}), a
 validated refit-free estimate of how much its importance would move on a fresh
 cohort. \emph{Groups.} For a group $g$, $\phi_g^{(b)}$ is the per-tree
 importance of jointly permuting all members of $g$; group shadows (permuted
-group blocks) follow identically, giving group-level FDR that respects overlap.
+group blocks) follow identically, giving group-level FDR control.
 
 \begin{algorithm}[t]
 \caption{\textsc{SF-Select} (single fit)}
@@ -421,8 +422,8 @@ camera-ready would add per-cell confidence intervals.
 \includegraphics[width=\linewidth]{fig_grid.pdf}
 \caption{\textbf{Empirical FDR calibration (30 seeds).} Realized FDR vs.\ target
 $q$ (left) and vs.\ equicorrelation $\rho$ at $q{=}0.2$ (right), with power. The
-shadow-calibrated threshold keeps realized FDR near or below target across the
-grid; correlation is the stressor. Bands show $\pm1$ s.d.}
+shadow-calibrated threshold controls FDR near independence but breaks under
+correlation. Bands show $\pm1$ s.d.}
 \label{fig:grid}
 \end{figure}
 
@@ -496,7 +497,8 @@ reported numbers come from controlled synthetic data with known ground truth and
 from public datasets (Wisconsin breast cancer and Madelon); the estimator, the
 selection rule, the clustering variant, and every experiment are released as
 seeded Python built only on NumPy and scikit-learn, so each figure and table can
-be regenerated end to end.
+be regenerated end to end. Code and data are available at
+\texttt{github.com/hrudhailothumalla/sf-select}.
 
 \begin{thebibliography}{00}
 \bibitem{meinshausen2010} N.~Meinshausen and P.~B\"uhlmann, ``Stability
@@ -517,9 +519,9 @@ gold: model-X knockoffs for high-dimensional controlled variable selection,''
 Boruta package,'' \emph{J.\ Stat.\ Softw.}, vol.~36, no.~11, pp.~1--13, 2010.
 \bibitem{covert2021} I.~Covert and S.-I.~Lee, ``Improving KernelSHAP: practical
 Shapley value estimation using linear regression,'' in \emph{AISTATS}, 2021.
-\bibitem{robustmodelmaker} [Author(s)], ``RobustModelMaker: coupling bootstrap
-stability selection with leakage-safe nested cross-validation,'' \emph{arXiv:
-2606.01566}, 2026.
+\bibitem{robustmodelmaker} A.~S.~Barnard, ``RobustModelMaker: coupling bootstrap
+stability selection with leakage-safe nested cross-validation for scientific
+machine learning,'' \emph{arXiv:2606.01566}, 2026.
 \bibitem{madelon} I.~Guyon, ``Design of experiments for the NIPS 2003 variable
 selection benchmark,'' \emph{NIPS 2003 Workshop on Feature Extraction}, 2003.
 \bibitem{wolberg} W.~H.~Wolberg, W.~N.~Street, and O.~L.~Mangasarian, ``Breast
