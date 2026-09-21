@@ -1,0 +1,30 @@
+{
+  "q": 0.2,
+  "reps": 10,
+  "n": 700,
+  "p": 35,
+  "k": 7,
+  "ours_norm": {
+    "FDR": 0.18166666666666667,
+    "power": 0.4,
+    "nsel": 4.4,
+    "sec_per_run": 6.821485567092895,
+    "fits_per_run": 1.0
+  },
+  "ours_raw": {
+    "FDR": 0.16076839826839828,
+    "power": 0.7285714285714286,
+    "nsel": 6.6,
+    "sec_per_run": 6.953350186347961,
+    "fits_per_run": 1.0
+  },
+  "cpss": {
+    "FDR": 0.0,
+    "power": 0.6571428571428571,
+    "nsel": 4.6,
+    "sec_per_run": 95.63598508834839,
+    "fits_per_run": 16.0
+  },
+  "compute_ratio_fits": 16.0,
+  "compute_ratio_wall": 14.019817845793005
+}
