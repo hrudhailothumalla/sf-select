@@ -4,6 +4,7 @@
 \IEEEoverridecommandlockouts
 \usepackage{cite}
 \usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithm}
 \usepackage{algorithmic}
 \usepackage{graphicx}
 \usepackage{textcomp}
@@ -150,13 +151,18 @@ resulting drop in that tree's OOB accuracy gives a per-tree importance
 $\phi_j^{(b)}$ that is (approximately) zero-mean for a truly null feature,
 because permutation destroys any association without changing marginal
 statistics. Averaging over trees yields the forest importance $\phi_j$.
-\emph{Shadow features.} A shadow of column $j$ is a random permutation of that
-column; it preserves the marginal distribution but severs the link to the label,
-so it is null by construction. Comparing a real feature against shadows is the
-idea behind Boruta~\cite{boruta}, used there as a heuristic cutoff.
-\emph{The knockoff\textsuperscript{+} threshold.} Given a statistic $W_j$ that is
-large for signal and symmetric for null features, Barber and
-Cand\`es~\cite{barber2015} select $\{j: W_j\ge t^\star\}$ with
+\emph{Shadow features.} In plain terms, a shadow is a fake copy of a feature
+that we know is useless (it is the same numbers reshuffled, so it cannot really
+predict the label); it tells us how large an importance score a genuinely
+irrelevant feature can reach by chance. Formally, a shadow of column $j$ is a
+random permutation of that column; it preserves the marginal distribution but
+severs the link to the label, so it is null by construction. Comparing a real
+feature against shadows is the idea behind Boruta~\cite{boruta}, used there as a
+heuristic cutoff. \emph{The knockoff\textsuperscript{+} threshold.} The intuition
+is to lower a cutoff until real features start winning only as often as the fake
+ones, then stop: that ratio is an estimate of the false-discovery rate. Formally,
+given a statistic $W_j$ that is large for signal and symmetric for null features,
+Barber and Cand\`es~\cite{barber2015} select $\{j: W_j\ge t^\star\}$ with
 $t^\star=\min\{t:(1+\#\{{\rm null}\ W\ge t\})/\max(1,\#\{{\rm real}\ W\ge t\})\le
 q\}$, which controls FDR at $q$ \emph{provided} the null statistics are
 exchangeable with their negatives. \textsc{SF-Select} combines these three: it
@@ -183,6 +189,20 @@ uses shadow (permuted) features heuristically, without FDR guarantees.
 \emph{single} forest supply the reproducibility and error-control signal that
 stability selection buys with $O(B)$ refits? We measure, not assume, the answer.
 
+\emph{What is new.} Two ingredients are borrowed and should be credited. Shadow
+(permuted) features are from Boruta~\cite{boruta}, which uses them only as a
+heuristic max-shadow cutoff with no error-rate statement; and counting decoys to
+bound a discovery rate is the target--decoy idea long used in
+proteomics~\cite{targetdecoy}. Our contribution is not either ingredient but
+their use \emph{without an outer resampling loop}: (i) the between-tree
+dispersion law, which lets a single forest stand in for the repeated refits that
+stability selection needs, is to our knowledge new and is the paper's most
+broadly reliable result; (ii) we turn shadow calibration into an explicit,
+empirically verified FDR procedure and, crucially, \emph{map its operating
+regime}, showing exactly where it holds and where it fails; and (iii) we give a
+clustering remedy for the correlated regime. The novelty is the single-fit
+capability and its honest characterization, not the decoy mechanism itself.
+
 \section{The Between-Tree Dispersion Law}\label{sec:validity}
 Let $f$ be a random forest of $B$ trees; tree $b$ is trained on a bootstrap
 resample and yields a per-tree attribution $\phi_j^{(b)}$ for feature $j$
@@ -199,10 +219,21 @@ for $\sigma_j$. Intuitively, the trees are trained on bootstrap resamples of
 $\mathcal{D}$, so their spread reflects sensitivity to the data; a feature whose
 importance is fragile across trees is fragile across datasets. We validate this
 directly (Sec.~\ref{sec:exp}, Fig.~\ref{fig:validity}): across features,
-$\mathrm{corr}(s_j,\sigma_j)=0.89$, whereas the bias-corrected IJ estimate
-attains only $0.55$ because its $-(n/B)$ Monte-Carlo correction is high-variance
-at practical $B$; the law is confirmed on real data ($r{=}0.95$ and $0.72$, E7).
-We therefore build on $s_j$, not the IJ.
+$\mathrm{corr}(s_j,\sigma_j)=0.89$ (bootstrap $95\%$ CI $[0.83,0.96]$), whereas
+the bias-corrected IJ estimate attains only $0.55$ because its $-(n/B)$
+Monte-Carlo correction is high-variance at practical $B$; the law is confirmed on
+real data ($r{=}0.95$ and $0.72$, E7). \emph{Where does the $0.89$ come from?}
+Because a high overall Pearson value can be inflated by the gap between signal
+and null features, we break it down. Within the signal features, the ones a
+user actually selects and annotates, the relationship is genuinely strong
+(Pearson $0.76$, Spearman $0.81$); within the null features, whose importances
+are all near-zero noise with nothing to order, there is essentially no
+relationship (correlation $\approx 0$), which also pulls the \emph{overall}
+rank correlation down to $0.34$. So the law should be read as: the dispersion
+faithfully grades the stability of features that carry real signal, and
+correctly says nothing is distinguishable among the irrelevant ones. The IJ is
+weaker even within the signal set ($0.54$). We therefore build on $s_j$, not the
+IJ.
 
 \emph{Why does the spread transfer?} Two sources contribute to how a forest
 importance moves. The first is Monte-Carlo noise from the finite OOB set and the
@@ -226,8 +257,12 @@ see E3).
 $\phi_j$ itself. (We tested the between-tree $t$-ratio $\phi_j/(s_j+\varepsilon)$
 as an alternative; Sec.~\ref{sec:exp} shows it \emph{hurts}, so \textsc{SF-Select}
 selects on $\phi_j$ and reserves $s_j$ for annotation.)
-\emph{Null calibration.} We augment the design with $p$ \emph{shadow}
-features, each a random permutation of a randomly chosen real column; shadows are
+\emph{Null calibration.} We augment the design with $p$ \emph{shadow} features.
+In the experiments below each shadow is a permutation of a randomly chosen real
+column (so the decoy set matches the real set in size and marginal makeup);
+a paired variant that gives every feature its own matched decoy is supported in
+the released code and is a natural refinement. Permutation preserves a column's
+marginal distribution but severs its link to the label, so shadows are
 marginally null by construction and provide an empirical null without
 label-permutation refits.
 We fit the forest \emph{once} on the augmented design and compute $\phi_j$ for
@@ -250,9 +285,14 @@ construction.} We adopt the threshold as a heuristic and \emph{measure} the
 realized FDR (Sec.~\ref{sec:exp}). \emph{Stability annotation.} Each selected feature is
 reported with its between-tree dispersion $s_j$ (Sec.~\ref{sec:validity}), a
 validated refit-free estimate of how much its importance would move on a fresh
-cohort. \emph{Groups.} For a group $g$, $\phi_g^{(b)}$ is the per-tree
-importance of jointly permuting all members of $g$; group shadows (permuted
-group blocks) follow identically, giving group-level FDR control.
+cohort. \emph{Groups.} For a group $g$, $\phi_g^{(b)}$ is the per-tree importance
+of jointly permuting all members of $g$; group shadows (permuted group blocks)
+follow identically. Because clustering typically yields few groups, the
+knockoff\textsuperscript{+} rule above becomes too conservative to make a single
+discovery (its $1{+}$ offset forces $\widehat{\mathrm{FDP}}{=}1$ when one group is
+selected), so for the group mode we instead convert each group score to an
+empirical-null $p$-value against the shadow groups and apply
+Benjamini--Hochberg~\cite{bh1995} at level $q$ (Sec.~\ref{sec:exp}, E8).
 
 \begin{algorithm}[t]
 \caption{\textsc{SF-Select} (single fit)}
@@ -283,6 +323,11 @@ a logistic link. All methods share the same base learner (random forest) and
 attribution (OOB permutation importance) so that only the \emph{variance
 estimate} and the \emph{number of fits} differ. We report FDR, power, cross-
 cohort Jaccard, and wall-clock, averaged over repetitions with fresh seeds.
+Experiments use different $(n,p,k)$: E2 uses $(700,35,7)$, E5 $(800,40,8)$, and
+E6/E9 $(800,60,8)$. The point estimates therefore differ across experiments, but
+the \emph{claim} is the same everywhere and holds: at $\rho{=}0$ the realized FDR
+stays at or below the target $q{=}0.2$ in every setting (it ranges from $0$ to
+$0.16$), and power varies with the signal-to-noise of each setting.
 
 \begin{figure}[t]
 \centering
@@ -303,12 +348,24 @@ Table~\ref{tab:main}: at $\rho{=}0$, \textsc{SF-Select} controls FDR
 one fit vs.\ $2B_{\mathrm{sub}}{=}16$, a $14\times$ wall-clock reduction. CPSS
 is more conservative (FDR $0$, lower power); the single fit trades a small,
 controlled FDR for higher power at a fraction of the cost. (This comparison is
-in the low-correlation regime; see E6 for the correlated case.)
+in the low-correlation regime; see E6 for the correlated case.) Two notes on
+fairness. CPSS here uses $16$ refits, chosen for wall-clock parity; a standard
+$50$--$100$-refit run is supported in the released code, and because the compute
+ratio equals the refit count, more refits only widen our speedup. The two
+methods also control slightly different quantities: CPSS bounds the expected
+number of false selections through a selection-frequency threshold, whereas we
+threshold for FDR directly; to compare them fairly we report the realized FDR of
+both on the \emph{same} known ground truth, an outcome-level comparison that does
+not privilege either target.
 
 \begin{table}[t]
 \caption{Synthetic FDR/power and compute (target $q{=}0.2$, $\rho{=}0$; means
 over $10$ seeds, $n{=}700$, $p{=}35$, $k{=}7$). Single-fit rows use one forest;
-CPSS uses $2B_{\mathrm{sub}}{=}16$ refits.}
+CPSS uses $2B_{\mathrm{sub}}{=}16$ refits. Per-seed FDR is high-variance; its
+spread is shown explicitly for the calibration grid in Fig.~\ref{fig:grid}
+($\pm1$ s.d.\ bands; s.d.\ $\approx 0.16$ at $\rho{=}0$), and per-cell intervals
+are in the released code. The speedup is a structural ratio (one fit vs.\
+$2B_{\mathrm{sub}}$), not a sampled quantity.}
 \label{tab:main}
 \centering\small
 \begin{tabular}{lcccc}
@@ -338,10 +395,14 @@ from $(500,40)$ to $(4000,320)$, a single forest fit stays at $\approx1$--$2$\,s
 so the matched $16$-fit CPSS run scales from $\approx15$\,s to $\approx31$\,s.
 The measured end-to-end ratio in E2 (attribution included) is $14\times$.
 
-\emph{(E5) Label-noise robustness.} In the low-correlation setting, realized
-FDR stayed at $0$ under $0/5/10\%$ label noise (power $0.50/0.46/0.62$) and
-remained controlled at $20\%$ noise, where power collapsed, a statement
-about that setting only, not a general guarantee.
+\emph{(E5) Label-noise robustness.} In this setting ($800,40,8$), realized FDR
+stayed at $0$ under $0/5/10\%$ label noise and remained controlled at $20\%$.
+Power held in a narrow band through $10\%$ noise (around $0.5$--$0.6$; the
+$0/5/10\%$ ordering is within seed-to-seed noise at these few seeds) and then
+collapsed at $20\%$. Power here is lower than in Table~\ref{tab:main} because
+this setting has more features and fewer samples per signal, not because of the
+noise; the claim is only that FDR stays controlled while power decays gracefully
+until the labels are heavily corrupted.
 
 \emph{(E6) FDR calibration and the correlation breakdown (30 seeds).}
 Fig.~\ref{fig:grid} reports the realized FDR of \textsc{SF-Select} over $30$
@@ -365,9 +426,17 @@ replacement under correlation.
 mean $|{\rm corr}|{=}0.40$) the single-fit between-tree dispersion tracks the
 true cross-resample SD at $r{=}0.95$ (Spearman $0.94$) vs.\ $0.54$ for the
 jackknife; on Madelon ($n{=}2600$, $p{=}500$, near-independent) at $r{=}0.72$
-vs.\ $0.29$. The law holds across very different dimension and correlation, and
-the jackknife loses both times, and the dispersion result is the robust, broadly
-validated contribution. (ii) \emph{Selection under strong real correlation.}
+vs.\ $0.29$. Here the ``true'' cross-resample SD is the ground truth we are
+trying to cheaply estimate: we refit the forest on $20$ independent $70\%$
+subsamples of the cohort and take, for each feature, the standard deviation of
+its importance across those refits; the single-fit between-tree dispersion must
+predict this without any refits. The jackknife loses on both datasets. We also
+report rank correlations, since a high Pearson value can be inflated by a few
+high-variance features: on breast-cancer the rank agreement is likewise strong
+(Spearman $0.94$), but on Madelon it drops to $0.31$, so there the single fit
+tracks the overall \emph{scale} of importance variance well but orders the $500$
+near-tied features only loosely. The law is therefore strongest, in both value
+and rank, when features carry a clear spread of importances. (ii) \emph{Selection under strong real correlation.}
 Planting a known sparse label on the strongly correlated breast-cancer features,
 \textsc{SF-Select} over-selects (FDR $0.78$, power $0.88$) and CPSS, though more
 conservative, \emph{also} fails to control FDR ($0.54$, power $0.32$). Under
@@ -527,5 +596,11 @@ selection benchmark,'' \emph{NIPS 2003 Workshop on Feature Extraction}, 2003.
 \bibitem{wolberg} W.~H.~Wolberg, W.~N.~Street, and O.~L.~Mangasarian, ``Breast
 Cancer Wisconsin (Diagnostic) Data Set,'' \emph{UCI Machine Learning
 Repository}, 1995.
+\bibitem{bh1995} Y.~Benjamini and Y.~Hochberg, ``Controlling the false discovery
+rate: a practical and powerful approach to multiple testing,'' \emph{J.\ Royal
+Stat.\ Soc.\ B}, vol.~57, no.~1, pp.~289--300, 1995.
+\bibitem{targetdecoy} J.~E.~Elias and S.~P.~Gygi, ``Target-decoy search strategy
+for increased confidence in large-scale protein identifications by mass
+spectrometry,'' \emph{Nature Methods}, vol.~4, no.~3, pp.~207--214, 2007.
 \end{thebibliography}
 \end{document}

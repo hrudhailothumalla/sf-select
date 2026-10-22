@@ -85,24 +85,20 @@ def per_tree_oob_importance(rf, X, y, rng, oob_cap=200, n_jobs=-1):
       Nbi      : (B_trees, n) in-bag counts (# times sample i drawn for tree b)
     Byproducts of ONE fitted forest -- no refits. Batched + parallel.
     """
-    from joblib import Parallel, delayed
+    # Serial loop: a threaded joblib pool here can deadlock against the forest's
+    # own parallelism and gave no speedup in practice, so we run plainly.
     n, p = X.shape
     B = len(rf.estimators_)
     Nbi = np.zeros((B, n))
     all_idx = np.arange(n)
-    jobs, valid = [], []
     seeds = rng.integers(1 << 30, size=B)
+    phi_tree = np.zeros((B, p))
     for b, tree in enumerate(rf.estimators_):
         counts = np.bincount(rf.estimators_samples_[b], minlength=n)
         Nbi[b] = counts
         oob = all_idx[counts == 0]
         if len(oob) >= 10:
-            jobs.append(delayed(_tree_imp)(tree, X[oob], y[oob], int(seeds[b]), oob_cap))
-            valid.append(b)
-    out = Parallel(n_jobs=n_jobs, prefer="threads")(jobs)
-    phi_tree = np.zeros((B, p))
-    for b, imp in zip(valid, out):
-        phi_tree[b] = imp
+            phi_tree[b] = _tree_imp(tree, X[oob], y[oob], int(seeds[b]), oob_cap)
     return phi_tree, Nbi
 
 
@@ -156,10 +152,23 @@ def bh_select(phi, var, q=0.1):
     return pvals <= cutoff, pvals, z
 
 
-def add_shadows(X, rng, n_shadow=None):
+def add_shadows(X, rng, n_shadow=None, paired=False):
     """Augment X with 'shadow' features: permuted copies of real columns.
-    Shadows are guaranteed nulls and provide a single-fit empirical null."""
+    Shadows are marginally null by construction and provide a single-fit
+    empirical null.
+
+    paired=True (default, camera-ready): exactly ONE shadow per real feature,
+    each the permutation of its own column. This gives a balanced, paired null
+    (every feature has a matched decoy) and is the design we recommend.
+    paired=False (legacy): n_shadow shadows, each a permutation of a randomly
+    chosen column (with replacement), so some features get none and others
+    several -- kept only for backward compatibility.
+    """
     n, p = X.shape
+    if paired:
+        Xs = np.column_stack([X[rng.permutation(n), j] for j in range(p)])
+        is_real = np.array([True] * p + [False] * p)
+        return np.hstack([X, Xs]), is_real
     if n_shadow is None:
         n_shadow = p
     cols = rng.integers(0, p, size=n_shadow)
