@@ -13,9 +13,9 @@ import sfass as S
 from grid import make_corr_data
 
 RES = os.path.join(os.path.dirname(__file__), "..", "results")
-CFG = dict(n=800, p=60, k=8, snr=1.4)
-B_TREES = 150
-CAP = 70
+CFG = dict(n=800, p=50, k=8, snr=1.4)   # unified config (matches H1)
+B_TREES = 120
+CAP = 55
 OUT = {}
 
 
@@ -31,8 +31,9 @@ def msd(x): return (float(np.mean(x)), float(np.std(x)))
 
 
 def fit_once(X, y, rng, B_trees=B_TREES, cap=CAP):
-    """One paired-shadow forest fit -> (phi_real, phi_shadow, s_real, s_shadow)."""
-    Xs, is_real = S.add_shadows(X, rng, paired=True)
+    """One shadow-augmented forest fit -> (phi_real, phi_shadow, s_real, s_shadow).
+    Random shadow design, matching the accepted paper and the E7/E8 experiments."""
+    Xs, is_real = S.add_shadows(X, rng, paired=False)
     rf = RandomForestClassifier(n_estimators=B_trees, bootstrap=True,
                                 max_features="sqrt", n_jobs=-1,
                                 random_state=int(rng.integers(1 << 30)))
@@ -105,7 +106,7 @@ def exp_h1(R=25, seed=1):
 
 
 # ---------------------------------------------------------------- E2/E3 + CPSS
-def exp_main(seeds_sf=30, seeds_cpss=5, B_sub=50, q=0.2, seed=3):
+def exp_main(seeds_sf=20, seeds_cpss=4, B_sub=50, q=0.2, seed=3):
     print("[cam-E2/E3] SF raw vs normalized (30 seeds) + CPSS (100 refits)")
     n, p, k, snr = CFG.values()
     raw = {"fdr": [], "pow": []}; norm = {"fdr": [], "pow": []}; sf_sec = []
@@ -153,7 +154,10 @@ def exp_e5(seeds=15, q=0.2, seed=6):
         fs, ps = [], []
         for r in range(seeds):
             rng = default_rng(6000 + r)
-            X, y, mask = make_corr_data(n, p, k, rng, snr=snr, rho=0.0, label_noise=ln)
+            X, y, mask = make_corr_data(n, p, k, rng, snr=snr, rho=0.0)
+            if ln > 0:                      # inject label noise manually
+                flip = rng.random(len(y)) < ln
+                y = y.copy(); y[flip] = 1 - y[flip]
             pr, ps_, sr, ss = fit_once(X, y, rng)
             sel = select(pr, ps_, q); f, pw, _ = S.fdr_power(sel, mask)
             fs.append(f); ps.append(pw)

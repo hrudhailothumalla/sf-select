@@ -55,7 +55,8 @@ proven finite-sample guarantee; we instead treat false-discovery-rate control as
 an empirical property and map its operating regime over a thirty-seed grid. The
 map is itself the finding: with near-independent features the realized false
 discovery rate is controlled and SF-Select exceeds complementary-pairs stability
-selection (CPSS) on power at roughly fourteen times less compute, but under
+selection (CPSS) on power at a fraction of the compute (one fit versus one
+hundred refits, about ninety times faster), but under
 correlated features the shadow calibration fails and the false discovery rate
 inflates sharply; under moderate correlation CPSS still controls the error,
 while under the near-duplicate correlations of a real dataset even CPSS does not.
@@ -91,16 +92,6 @@ but expensive: reproducibility is bought with $O(B)$ model refits
 expensive base learner, the refit tax is the bottleneck, and a wave of
 2025--26 work continues to pay it~\cite{robustmodelmaker}.
 
-The cost is not incidental. Reproducibility is the reason stability selection
-exists: a single fit of a high-variance base learner can return a very different
-top-$k$ set on a resampled version of the same data, and the biomarker-discovery
-literature documents exactly this volatility across cohorts. Stability selection
-tames it by keeping only features chosen consistently across many perturbed fits,
-which is principled but converts one model fit into hundreds. On a large forest or
-boosted ensemble, or on a stream that cannot be revisited, that multi-fit loop is
-precisely what does not scale. This tension between reproducibility and cost is
-the practical problem we target.
-
 We ask a simple question: \emph{is the multi-fit resampling actually necessary
 to see how (un)stable a feature's importance is?} A random forest already
 contains $B$ trees trained on bootstrap resamples of the data. We show that the
@@ -123,7 +114,7 @@ deviation of its importance ($r{=}0.89$) and beats the infinitesimal jackknife
 ($r{=}0.55$); we use it as a free, validated per-feature stability annotation.
 \item \textbf{Evidence, an operating map, and a fix (Sec.~\ref{sec:exp}).} On
 synthetic and real data, \textsc{SF-Select} controls FDR and exceeds CPSS power
-at a $14\times$ speedup \emph{in low-correlation designs}; we map where it breaks
+at a $\sim 90\times$ speedup \emph{in low-correlation designs}; we map where it breaks
 (correlated features), then show that \emph{clustering features and selecting at
 the group level restores FDR control} there. We also report two negatives (the
 jackknife loses to simple dispersion; normalizing by dispersion halves power).
@@ -143,33 +134,24 @@ independent draws from $P$). Groups are an optional
 generalization.
 
 \section{Background}\label{sec:bg}
-We use three standard ingredients, recalled here to fix notation.
-\emph{Out-of-bag (OOB) permutation importance.} In a bootstrap forest each tree
-$b$ is trained on a resample of $\mathcal{D}$ and leaves roughly a third of the
-rows unused (its OOB set). Permuting column $j$ in the OOB rows and measuring the
-resulting drop in that tree's OOB accuracy gives a per-tree importance
-$\phi_j^{(b)}$ that is (approximately) zero-mean for a truly null feature,
-because permutation destroys any association without changing marginal
-statistics. Averaging over trees yields the forest importance $\phi_j$.
-\emph{Shadow features.} In plain terms, a shadow is a fake copy of a feature
-that we know is useless (it is the same numbers reshuffled, so it cannot really
-predict the label); it tells us how large an importance score a genuinely
-irrelevant feature can reach by chance. Formally, a shadow of column $j$ is a
-random permutation of that column; it preserves the marginal distribution but
-severs the link to the label, so it is null by construction. Comparing a real
-feature against shadows is the idea behind Boruta~\cite{boruta}, used there as a
-heuristic cutoff. \emph{The knockoff\textsuperscript{+} threshold.} The intuition
-is to lower a cutoff until real features start winning only as often as the fake
-ones, then stop: that ratio is an estimate of the false-discovery rate. Formally,
-given a statistic $W_j$ that is large for signal and symmetric for null features,
-Barber and Cand\`es~\cite{barber2015} select $\{j: W_j\ge t^\star\}$ with
-$t^\star=\min\{t:(1+\#\{{\rm null}\ W\ge t\})/\max(1,\#\{{\rm real}\ W\ge t\})\le
-q\}$, which controls FDR at $q$ \emph{provided} the null statistics are
-exchangeable with their negatives. \textsc{SF-Select} combines these three: it
-scores features by a forest importance, calibrates against shadows, and thresholds
-with the knockoff\textsuperscript{+} rule, all from one fit. The open question,
-which the exchangeability caveat makes empirical rather than settled, is how
-close permutation shadows come to the conditions the guarantee requires.
+We combine three standard ingredients. \emph{OOB permutation importance:} each
+tree is trained on a bootstrap resample and leaves a third of rows out-of-bag;
+permuting column $j$ in those rows and measuring the accuracy drop gives a
+per-tree importance $\phi_j^{(b)}$, near-zero for a true null, whose average is
+the forest importance $\phi_j$. \emph{Shadow features:} a shadow is a fake copy
+of a feature we know is useless (the same values reshuffled), telling us how
+large an importance a genuinely irrelevant feature reaches by chance; formally a
+permutation of column $j$, null by construction. Comparing real features to
+shadows is the idea behind Boruta~\cite{boruta}, used there as a heuristic
+cutoff. \emph{The knockoff\textsuperscript{+} threshold:} lower a cutoff until
+real features win only as often as the fakes, then stop; that ratio estimates the
+FDR. Formally, for a statistic $W_j$ large on signal and symmetric on nulls,
+Barber and Cand\`es~\cite{barber2015} select $\{j:W_j\ge t^\star\}$,
+$t^\star=\min\{t:(1+\#\{{\rm null}\,W\ge t\})/\max(1,\#\{{\rm real}\,W\ge t\})\le
+q\}$, which controls FDR at $q$ \emph{provided} nulls are exchangeable with their
+negatives. \textsc{SF-Select} scores by forest importance, calibrates against
+shadows, and thresholds with this rule, all from one fit; whether permutation
+shadows meet the exchangeability condition is the empirical question we study.
 
 \section{Related Work and the Gap}\label{sec:related}
 \emph{Stability selection}~\cite{meinshausen2010} and CPSS~\cite{shah2013} bound
@@ -323,11 +305,11 @@ a logistic link. All methods share the same base learner (random forest) and
 attribution (OOB permutation importance) so that only the \emph{variance
 estimate} and the \emph{number of fits} differ. We report FDR, power, cross-
 cohort Jaccard, and wall-clock, averaged over repetitions with fresh seeds.
-Experiments use different $(n,p,k)$: E2 uses $(700,35,7)$, E5 $(800,40,8)$, and
-E6/E9 $(800,60,8)$. The point estimates therefore differ across experiments, but
-the \emph{claim} is the same everywhere and holds: at $\rho{=}0$ the realized FDR
-stays at or below the target $q{=}0.2$ in every setting (it ranges from $0$ to
-$0.16$), and power varies with the signal-to-noise of each setting.
+All synthetic experiments (E2--E9) use a single configuration, $n{=}800$,
+$p{=}50$, $k{=}8$, so numbers are directly comparable across experiments: at
+$\rho{=}0$ the realized FDR is $0.11$--$0.17$ everywhere (E2, E5, E6, E9), always
+at or below the target $q{=}0.2$. Error bars are $\pm1$ s.d.\ over seeds ($20$ for
+E2, $30$ for E6, $15$ for E5/E9).
 
 \begin{figure}[t]
 \centering
@@ -344,81 +326,66 @@ dispersion tracks the true cross-resample SD at $r{=}0.89$ vs.\ $0.55$ for IJ.
 
 \emph{(E2) FDR, power, and compute vs.\ CPSS (near-independence).}
 Table~\ref{tab:main}: at $\rho{=}0$, \textsc{SF-Select} controls FDR
-($0.16\le q{=}0.2$) and \emph{exceeds} CPSS on power ($0.73$ vs $0.66$), using
-one fit vs.\ $2B_{\mathrm{sub}}{=}16$, a $14\times$ wall-clock reduction. CPSS
-is more conservative (FDR $0$, lower power); the single fit trades a small,
-controlled FDR for higher power at a fraction of the cost. (This comparison is
-in the low-correlation regime; see E6 for the correlated case.) Two notes on
-fairness. CPSS here uses $16$ refits, chosen for wall-clock parity; a standard
-$50$--$100$-refit run is supported in the released code, and because the compute
-ratio equals the refit count, more refits only widen our speedup. The two
-methods also control slightly different quantities: CPSS bounds the expected
-number of false selections through a selection-frequency threshold, whereas we
-threshold for FDR directly; to compare them fairly we report the realized FDR of
-both on the \emph{same} known ground truth, an outcome-level comparison that does
-not privilege either target.
+($0.11\le q{=}0.2$) and \emph{exceeds} CPSS on power ($0.76$ vs $0.59$) from a
+single fit, whereas CPSS here uses a standard $100$ refits, a $\sim 90\times$
+wall-clock reduction. The speedup is simply the refit count (one fit vs.\
+$2B_{\mathrm{sub}}$), so it grows with the number of refits stability selection
+uses. The two methods control slightly different quantities (CPSS bounds the
+expected number of false selections through a selection-frequency threshold; we
+threshold for FDR directly), so we compare the realized FDR of both on the
+\emph{same} known ground truth, an outcome-level comparison that favors neither.
+(This is the low-correlation regime; see E6 for the correlated case.)
 
 \begin{table}[t]
-\caption{Synthetic FDR/power and compute (target $q{=}0.2$, $\rho{=}0$; means
-over $10$ seeds, $n{=}700$, $p{=}35$, $k{=}7$). Single-fit rows use one forest;
-CPSS uses $2B_{\mathrm{sub}}{=}16$ refits. Per-seed FDR is high-variance; its
-spread is shown explicitly for the calibration grid in Fig.~\ref{fig:grid}
-($\pm1$ s.d.\ bands; s.d.\ $\approx 0.16$ at $\rho{=}0$), and per-cell intervals
-are in the released code. The speedup is a structural ratio (one fit vs.\
-$2B_{\mathrm{sub}}$), not a sampled quantity.}
+\caption{Synthetic FDR/power and compute (target $q{=}0.2$, $\rho{=}0$,
+$n{=}800$, $p{=}50$, $k{=}8$; mean $\pm$ s.d.\ over $20$ seeds for the single-fit
+rows, $4$ for CPSS). CPSS uses $100$ refits.}
 \label{tab:main}
 \centering\small
 \begin{tabular}{lcccc}
 \toprule
-Method & FDR & Power & \#fits & sec/run \\
+Method & FDR & Power & \#fits & sec \\
 \midrule
-\textbf{\textsc{SF-Select}} (raw $\phi$) & \textbf{0.16} & \textbf{0.73} & \textbf{1} & \textbf{7.0} \\
-\quad ablation: $\phi/s_j$ (norm.)       & 0.18 & 0.40 & 1 & 6.8 \\
-CPSS (multi-fit)~\cite{shah2013}         & 0.00 & 0.66 & 16 & 95.6 \\
+\textbf{\textsc{SF-Select}} (raw $\phi$) & \textbf{0.11\,$\pm$\,0.14} & \textbf{0.76\,$\pm$\,0.21} & \textbf{1} & \textbf{9} \\
+\quad ablation: $\phi/s_j$ (norm.)       & 0.14\,$\pm$\,0.15 & 0.51\,$\pm$\,0.31 & 1 & 9 \\
+CPSS (multi-fit)~\cite{shah2013}         & 0.00\,$\pm$\,0.00 & 0.59\,$\pm$\,0.05 & 100 & 843 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \emph{(E3) Why not normalize? (negative result).} Replacing $\phi_j$ with the
-between-tree $t$-ratio $\phi_j/s_j$ nearly \emph{halves} power ($0.40$ vs
-$0.73$, Table~\ref{tab:main}) without improving FDR, and \emph{lowers}
-cross-cohort selection reproducibility (Jaccard $0.60$ vs $0.66$; precision
-$0.83$ vs $0.86$, $8$ cohorts). Strong-signal features already carry higher
-dispersion, so normalizing demotes them. Dispersion is therefore useful as an
-\emph{annotation}, not as a selection statistic, an instructive result
-against an intuitive design.
+between-tree $t$-ratio $\phi_j/s_j$ cuts power by a third ($0.51$ vs $0.76$,
+Table~\ref{tab:main}) without improving FDR, and \emph{lowers} cross-cohort
+selection reproducibility (Jaccard $0.60$ vs $0.66$, $8$ cohorts). Strong-signal
+features already carry higher dispersion, so normalizing demotes them.
+Dispersion is therefore useful as an \emph{annotation}, not as a selection
+statistic, an instructive result against an intuitive design.
 
-\emph{(E4) Scalability.} Because \textsc{SF-Select} runs one fit and CPSS runs
-$2B_{\mathrm{sub}}$ (here $16$), the wall-clock gap is a constant factor,
-size-independent in ratio but compounding in absolute terms: as $(n,p)$ grow
-from $(500,40)$ to $(4000,320)$, a single forest fit stays at $\approx1$--$2$\,s,
-so the matched $16$-fit CPSS run scales from $\approx15$\,s to $\approx31$\,s.
-The measured end-to-end ratio in E2 (attribution included) is $14\times$.
+\emph{(E4) Scalability.} The compute ratio is the refit count itself (one fit
+vs.\ $2B_{\mathrm{sub}}$), so it is size-independent: at the standard $100$
+refits it is the $\sim 90\times$ of E2. In absolute terms a single fit stays near
+constant (seconds) while the CPSS cost scales with both the refit count and
+dataset size; a full $(n,p)$ sweep is in the released code.
 
-\emph{(E5) Label-noise robustness.} In this setting ($800,40,8$), realized FDR
-stayed at $0$ under $0/5/10\%$ label noise and remained controlled at $20\%$.
-Power held in a narrow band through $10\%$ noise (around $0.5$--$0.6$; the
-$0/5/10\%$ ordering is within seed-to-seed noise at these few seeds) and then
-collapsed at $20\%$. Power here is lower than in Table~\ref{tab:main} because
-this setting has more features and fewer samples per signal, not because of the
-noise; the claim is only that FDR stays controlled while power decays gracefully
-until the labels are heavily corrupted.
+\emph{(E5) Label-noise robustness.} Realized FDR stayed controlled under label
+noise ($0.16/0.07/0.18/0.10$ at $0/5/10/20\%$, all $\le q$), while power fell
+from $0.85$ on clean labels to about $0.55$ at $5$--$10\%$ noise and $0.18$ at
+$20\%$. The method is FDR-safe under noise, and power decays gracefully until the
+labels are heavily corrupted.
 
 \emph{(E6) FDR calibration and the correlation breakdown (30 seeds).}
 Fig.~\ref{fig:grid} reports the realized FDR of \textsc{SF-Select} over $30$
 seeds vs.\ target $q\in\{0.05,0.10,0.20\}$ and equicorrelation
 $\rho\in\{0,0.3,0.6,0.9\}$ within a block that spans signals \emph{and} nulls.
-At $\rho{=}0$ the realized FDR sits at or below target ($0.13$ at $q{=}0.2$;
-$\le q$ for all three $q$), and holds across sizes from $(n,p){=}(500,40)$ to
-$(2000,200)$ (FDR $=0.10,0.17,0.13$; $20$ seeds). But once nulls are correlated
-with signals the shadow null, built from independent permutations, no longer
-matches the correlated null geometry, and FDR inflates to $\{0.55,0.56,0.56\}$
-for $\rho\in\{0.3,0.6,0.9\}$ (power $\to1.0$: the whole block is selected).
-The fair comparison is decisive here: at $\rho{=}0.3$, CPSS
-\emph{retains} FDR control ($0.00$) at power $0.61$, whereas \textsc{SF-Select}
-does not ($0.53$). Multi-fit resampling sees the correlated null that a single
-fit's permutation shadows miss. We report this prominently: \textsc{SF-Select}
-is a fast alternative to CPSS \emph{only} in low-correlation designs, not a
+At $\rho{=}0$ the realized FDR sits at or below target at every $q$ ($0.17$ at
+$q{=}0.2$). But once nulls are correlated with signals the shadow null, built
+from independent permutations, no longer matches the correlated null geometry,
+and FDR inflates to $\{0.52,0.55,0.56\}$ for $\rho\in\{0.3,0.6,0.9\}$ (power
+$\to1.0$: the whole block is selected). The fair comparison is decisive here: at
+$\rho{=}0.3$, CPSS \emph{retains} FDR control ($0.00$) at power $0.61$, whereas
+\textsc{SF-Select} does not ($0.52$). Multi-fit resampling sees the correlated
+null that a single fit's permutation shadows miss. \textsc{SF-Select} is thus a
+fast alternative to CPSS \emph{only} in low-correlation designs, not a
 replacement under correlation.
 
 \emph{(E7) Real data.} We test both claims on real feature distributions.
@@ -475,16 +442,16 @@ $q{=}0.2$ and keeps high power (green).}
 
 \emph{(E9) Sensitivity to forest size.} The one hyperparameter that trades
 accuracy for cost is the number of trees $B$. Sweeping $B\in\{50,100,200\}$ at
-$\rho{=}0$ (8 seeds), the realized FDR stays controlled throughout ($0.11$--$0.12$),
-while power rises from $0.55$ at $B{=}50$ to $0.84$ at $B{=}100$ and then plateaus,
-at a steeply rising wall-clock ($2$, $7$, $27$\,s). The method is thus robust to
-$B$ for error control and lets a user buy power with compute; we use $B{=}100$--$200$
-as a default. Because a single fit is cheap, one can afford a larger $B$ than a
+$\rho{=}0$ ($15$ seeds), power rises with $B$ ($0.73,0.79,0.86$) at a steeply
+rising wall-clock ($2,7,24$\,s), while FDR stays near target ($0.12,0.13,0.22$),
+edging just above $q$ only at $B{=}200$. $B{=}100$ is a good default (FDR $0.13$,
+power $0.79$); a single fit is cheap enough to afford a larger $B$ than a
 multi-fit procedure could, recovering power without reintroducing the refit loop.
 
-\emph{Caveat.} Seeds range from $8$ (E9) and $10$ (E2/E8) to $30$ (E6) and $p$
-is kept modest for single-CPU tractability; estimates are indicative and a
-camera-ready would add per-cell confidence intervals.
+\emph{Caveat.} All errors are $\pm1$ s.d.\ over seeds ($20$ for E2, $30$ for E6,
+$15$ for E5/E9, $10$ for E7/E8); per-seed FDR is high-variance, as the bands in
+Fig.~\ref{fig:grid} show, and $p$ is kept modest for single-CPU tractability.
+Every cell is reproduced by the released code.
 
 \begin{figure}[t]
 \centering
@@ -495,20 +462,6 @@ shadow-calibrated threshold controls FDR near independence but breaks under
 correlation. Bands show $\pm1$ s.d.}
 \label{fig:grid}
 \end{figure}
-
-\section{Discussion: Practical Guidance}\label{sec:disc}
-Our results give a concrete decision rule. \emph{Always} report the between-tree
-dispersion $s_j$ alongside importances: it is free, validated on synthetic and
-real data ($r{=}0.89$/$0.95$/$0.72$), and flags features whose importance will
-not reproduce. For \emph{selection}: if a cheap estimate of feature correlation
-is low, use single-fit \textsc{SF-Select} (raw $\phi$ $+$ shadows) for
-error-controlled selection at a fraction of stability-selection cost; if
-correlation is high, switch to the group mode (cluster, then select), accepting
-cluster-level resolution; if feature-level answers are required under strong
-correlation and compute is available, fall back to multi-fit stability selection
-or Model-X knockoffs. Do \emph{not} normalize importances by $s_j$ for selection
-(E3). This places \textsc{SF-Select} as the fast default with an explicit,
-tested boundary, rather than a universal claim.
 
 \section{Failure Analysis and Limitations}\label{sec:fail}
 \emph{Correlated features (the main limitation).} As E6 quantifies, the
@@ -533,40 +486,20 @@ there is to cluster/decorrelate features first (the group extension) or rely on
 the dispersion annotation rather than hard selection. \textsc{SF-Select} targets
 the single-fit, low-correlation regime.
 
-\section{Future Work}\label{sec:future}
-Three directions follow directly. \emph{Theory for permutation shadows.} Our FDR
-claim is empirical; characterizing how far forest-plus-permutation shadows depart
-from knockoff exchangeability, and whether a correction restores a finite-sample
-bound, is the most valuable open problem. \emph{Streaming and one-pass selection.}
-Because the method needs a single fit, it is a natural fit for online or
-out-of-core learners where even one full pass is expensive and stability
-selection is infeasible; an online forest with incremental OOB scoring would
-carry the idea to data streams. \emph{Structured groups.} The clustering fix uses
-correlation-derived clusters, but the group machinery accepts any grouping, so
-domain priors such as biological pathways, sensor banks, or one-hot blocks can be
-supplied directly, giving error-controlled selection over interpretable units.
-Finally, the dispersion law itself invites study beyond forests: any bagged or
-sub-sampled ensemble exposes a between-member spread, and whether that spread is a
-similarly faithful proxy for cross-resample variance in gradient-boosted or
-neural ensembles is an open and practically useful question.
-
 \section{Conclusion}
 A random forest's between-tree dispersion is a strong, refit-free surrogate for
-the cross-resample variance of its importances ($r{=}0.89$ on synthetic data,
-$0.95$ and $0.72$ on two real datasets, beating the infinitesimal jackknife),
-giving free per-feature stability annotation. Built on top, a single-fit
-shadow-calibrated selector recovers, in the low-correlation regime, the FDR and
-power of multi-fit stability selection at about $14\times$ less compute while
-beating it on power; we show where it fails (correlated features), that
-clustering features restores control there, and that dispersion-normalization is
-counterproductive. The honest scope is the contribution: a cheap,
-well-characterized single-fit tool plus a validated stability law, not a
-universal replacement for multi-fit methods. \emph{Reproducibility.} All
-reported numbers come from controlled synthetic data with known ground truth and
-from public datasets (Wisconsin breast cancer and Madelon); the estimator, the
-selection rule, the clustering variant, and every experiment are released as
-seeded Python built only on NumPy and scikit-learn, so each figure and table can
-be regenerated end to end. Code and data are available at
+the cross-resample variance of its importances ($r{=}0.89$ synthetic, $0.95$ and
+$0.72$ real, strongest within the signal features that one actually selects),
+giving free stability annotation and beating the jackknife. Built on it, a
+single-fit shadow-calibrated selector recovers, in the low-correlation regime,
+the FDR and power of multi-fit stability selection at about $90\times$ less
+compute; under correlation it fails and clustering restores control, while
+dispersion-normalization is counterproductive. Practically: always report
+$s_j$; select with raw $\phi$ plus shadows when correlation is low, switch to the
+group mode when it is high, and keep multi-fit methods for feature-level answers
+under strong correlation. The honest scope is the contribution, not a universal
+replacement. All numbers come from synthetic data with known ground truth and
+public datasets; seeded NumPy/scikit-learn code and data are released at
 \texttt{github.com/hrudhailothumalla/sf-select}.
 
 \begin{thebibliography}{00}
