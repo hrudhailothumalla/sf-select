@@ -489,7 +489,11 @@ dispersion-normalization is counterproductive. Practically: always report
 $s_j$; select with raw $\phi$ plus shadows when correlation is low, switch to the
 group mode when it is high, and keep multi-fit methods for feature-level answers
 under strong correlation. The honest scope is the contribution, not a universal
-replacement. All numbers come from synthetic data with known ground truth and
+replacement. The dispersion law is the piece most worth pushing further: any
+bagged or boosted ensemble exposes a between-member spread, and whether it is as
+faithful a refit-free variance proxy there, and can underpin a standalone
+stability estimator, is an open and practically useful question. All numbers
+come from synthetic data with known ground truth and
 public datasets; seeded NumPy/scikit-learn code and data are released at
 \texttt{github.com/hrudhailothumalla/sf-select}.
 
