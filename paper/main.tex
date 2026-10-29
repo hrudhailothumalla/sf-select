@@ -217,22 +217,16 @@ correctly says nothing is distinguishable among the irrelevant ones. The IJ is
 weaker even within the signal set ($0.54$). We therefore build on $s_j$, not the
 IJ.
 
-\emph{Why does the spread transfer?} Two sources contribute to how a forest
-importance moves. The first is Monte-Carlo noise from the finite OOB set and the
-finite number of trees, which vanishes as $B$ grows. The second is the
-sensitivity of the learned splits to \emph{which} data points are present; a
-feature that is used near the root of many trees regardless of the resample has
-low between-tree spread, while a feature that only occasionally wins a split has
-high spread. Because each tree sees a bootstrap resample, the second component is
-already a within-fit Monte-Carlo estimate of the same data-perturbation
-sensitivity that stability selection measures with an outer resampling loop. The
-infinitesimal jackknife tries to isolate this component analytically from the
-in-bag counts, but at practical $B$ its bias correction subtracts two large,
-noisy quantities and the estimate degrades; the raw dispersion keeps both
-components and, empirically, ranks features far more faithfully. This is why the
-simpler statistic wins, and why we treat $s_j$ as a reproducibility annotation
-rather than a normalizer (normalizing by it demotes strong, high-spread signals;
-see E3).
+\emph{Why does the spread transfer?} A forest importance moves for two reasons:
+Monte-Carlo noise from the finite OOB set and finite tree count (which vanishes
+as $B$ grows), and the sensitivity of the learned splits to \emph{which} data
+points are present. Because each tree sees a bootstrap resample, the second
+component is already a within-fit estimate of the same data-perturbation
+sensitivity that stability selection measures with an outer loop. The jackknife
+tries to isolate it analytically but, at practical $B$, subtracts two large noisy
+quantities and degrades; the raw dispersion keeps both and ranks features more
+faithfully. Normalizing by it would demote strong, high-spread signals (E3), so
+we use $s_j$ as an annotation, not a normalizer.
 
 \section{SF-Select}\label{sec:method}
 \emph{Selection statistic.} The selection statistic is the forest importance
@@ -393,17 +387,14 @@ replacement under correlation.
 mean $|{\rm corr}|{=}0.40$) the single-fit between-tree dispersion tracks the
 true cross-resample SD at $r{=}0.95$ (Spearman $0.94$) vs.\ $0.54$ for the
 jackknife; on Madelon ($n{=}2600$, $p{=}500$, near-independent) at $r{=}0.72$
-vs.\ $0.29$. Here the ``true'' cross-resample SD is the ground truth we are
-trying to cheaply estimate: we refit the forest on $20$ independent $70\%$
-subsamples of the cohort and take, for each feature, the standard deviation of
-its importance across those refits; the single-fit between-tree dispersion must
-predict this without any refits. The jackknife loses on both datasets. We also
-report rank correlations, since a high Pearson value can be inflated by a few
-high-variance features: on breast-cancer the rank agreement is likewise strong
-(Spearman $0.94$), but on Madelon it drops to $0.31$, so there the single fit
-tracks the overall \emph{scale} of importance variance well but orders the $500$
-near-tied features only loosely. The law is therefore strongest, in both value
-and rank, when features carry a clear spread of importances. (ii) \emph{Selection under strong real correlation.}
+vs.\ $0.29$. The ``true'' SD here is estimated by refitting on $20$ independent
+$70\%$ subsamples and taking each feature's importance SD across refits; the
+single fit must predict this with no refits, and the jackknife loses on both.
+Rank correlations (which a high Pearson value can hide) are strong on
+breast-cancer (Spearman $0.94$) but drop to $0.31$ on Madelon, so there the
+single fit tracks the \emph{scale} of variance well but orders the $500$
+near-tied features only loosely. The law is strongest, in value and rank, when
+features carry a clear spread of importances. (ii) \emph{Selection under strong real correlation.}
 Planting a known sparse label on the strongly correlated breast-cancer features,
 \textsc{SF-Select} over-selects (FDR $0.78$, power $0.88$) and CPSS, though more
 conservative, \emph{also} fails to control FDR ($0.54$, power $0.32$). Under
