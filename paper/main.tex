@@ -171,17 +171,19 @@ uses shadow (permuted) features heuristically, without FDR guarantees.
 \emph{single} forest supply the reproducibility and error-control signal that
 stability selection buys with $O(B)$ refits? We measure, not assume, the answer.
 
-\emph{What is new.} Two ingredients are borrowed: shadow (permuted) features from
-Boruta~\cite{boruta} (used there as a heuristic cutoff, no error rate), and
-counting decoys to bound a discovery rate, the target--decoy idea from
-proteomics~\cite{targetdecoy}. Our contribution is their use \emph{without an
-outer resampling loop}: (i) the between-tree dispersion law, letting one forest
-stand in for stability selection's repeated refits, is to our knowledge new and
-the most broadly reliable result; (ii) we turn shadow calibration into an
-empirically verified FDR procedure and \emph{map its operating regime}, where it
-holds and where it fails; and (iii) a clustering remedy for the correlated case.
-The novelty is the single-fit capability and its honest characterization, not the
-decoy mechanism itself.
+\emph{What is new.} Two ingredients are borrowed and should be credited. Shadow
+(permuted) features are from Boruta~\cite{boruta}, which uses them only as a
+heuristic max-shadow cutoff with no error-rate statement; and counting decoys to
+bound a discovery rate is the target--decoy idea long used in
+proteomics~\cite{targetdecoy}. Our contribution is not either ingredient but
+their use \emph{without an outer resampling loop}: (i) the between-tree
+dispersion law, which lets a single forest stand in for the repeated refits that
+stability selection needs, is to our knowledge new and is the paper's most
+broadly reliable result; (ii) we turn shadow calibration into an explicit,
+empirically verified FDR procedure and, crucially, \emph{map its operating
+regime}, showing exactly where it holds and where it fails; and (iii) we give a
+clustering remedy for the correlated regime. The novelty is the single-fit
+capability and its honest characterization, not the decoy mechanism itself.
 
 \section{The Between-Tree Dispersion Law}\label{sec:validity}
 Let $f$ be a random forest of $B$ trees; tree $b$ is trained on a bootstrap
@@ -286,8 +288,9 @@ Benjamini--Hochberg~\cite{bh1995} at level $q$ (Sec.~\ref{sec:exp}, E8).
 \end{algorithm}
 
 \emph{Complexity.} One forest fit $O(Bn\log n\sqrt p)$ plus attribution
-$O(Bp\,n_{\mathrm{oob}})$ (batched over features), versus CPSS's
-$2B_{\mathrm{sub}}$ full fits with attribution.
+$O(Bp\,n_{\mathrm{oob}})$ (batched over features). CPSS costs $2B_{\mathrm{sub}}$
+\emph{full} fits{+}attributions; \textsc{SF-Select}'s speedup is
+$\approx 2B_{\mathrm{sub}}$ and independent of $n,p$.
 
 \section{Experiments}\label{sec:exp}
 \emph{Setup.} Synthetic data give exact ground truth: Gaussian design with $k$
@@ -466,11 +469,13 @@ reliable contribution.
 \emph{Distribution shift.} The proxy captures \emph{sampling} instability, not
 shift: a feature stably important within a distribution but spurious across
 environments has small $s_j$ and is not flagged (needs multi-environment data;
-future work). \emph{Guarantee.} The knockoff\textsuperscript{+} bound is not established for our
-shadows; we make only the empirical claim. Under moderate correlation CPSS is the
-safer choice, and under near-duplicate features (E7) even it fails, so there one
-should cluster/decorrelate first or rely on the dispersion annotation.
-\textsc{SF-Select} targets the single-fit, low-correlation regime.
+future work). \emph{Guarantee.} The knockoff\textsuperscript{+} bound is not
+established for our shadows; we make only the empirical claim. Under \emph{moderate}
+correlation multi-fit stability selection remains the safer choice; under
+\emph{near-duplicate} features (E7) even it fails, so the honest recommendation
+there is to cluster/decorrelate features first (the group extension) or rely on
+the dispersion annotation rather than hard selection. \textsc{SF-Select} targets
+the single-fit, low-correlation regime.
 
 \section{Conclusion}
 A random forest's between-tree dispersion is a strong, refit-free surrogate for
@@ -491,14 +496,6 @@ stability estimator, is an open and practically useful question. All numbers
 come from synthetic data with known ground truth and
 public datasets; seeded NumPy/scikit-learn code and data are released at
 \texttt{github.com/hrudhailothumalla/sf-select}.
-
-\section*{Acknowledgment}
-\emph{AI-generated content disclosure.} The authors used an AI assistant (Claude,
-Anthropic) extensively under their direction across all stages: refining the
-research question and method, writing and running the experimental code (Python,
-NumPy, scikit-learn), and drafting and revising this manuscript. The authors
-directed the work, made the scientific decisions, and are responsible for the
-final content.
 
 \begin{thebibliography}{00}
 \bibitem{meinshausen2010} N.~Meinshausen and P.~B\"uhlmann, ``Stability
